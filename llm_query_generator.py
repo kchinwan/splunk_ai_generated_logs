@@ -1,19 +1,17 @@
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 import torch
-from huggingface_hub import login
-import os
 import re
+import requests
+from transformers import AutoTokenizer
 
-# Login to Hugging Face (consider storing the token in an env variable)
+# Hugging Face API setup
+API_TOKEN = "your_hugging_face_token"  # Use your Hugging Face token
+MODEL_NAME = "bigcode/starcoder2-7b"
+API_URL = f"https://api-inference.huggingface.co/models/{MODEL_NAME}"
 
-model_path = "./flan-lora-splunk"
-device = torch.device("cpu")
+# Load the tokenizer
+tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
-# Load model and tokenizer
-model = AutoModelForSeq2SeqLM.from_pretrained(model_path).to(device)
-tokenizer = AutoTokenizer.from_pretrained(model_path)
-
-# Your Splunk log schema
+# Define known log schema fields
 column_list = [
     'eventDatetime', 'eventType', 'failureType', 'index', 'step', 'comments', 'uniqueId', 'interfaceId',
     'correlationId', 'source', 'target', 'originalClientId', 'originalClientName', 'businessObject',
@@ -24,7 +22,7 @@ column_list = [
     'ReleasePauseValidationErrors', 'error_0_description', 'error_0_type', 'error_0_cause',
     'error_0_detailedDescription', 'XX_DEBRIEF_NUMBER', 'XX_SO_FULFILL_LINE_ID', 'OrderKey',
     'SalesOrderValidationErrors', 'XX_WO_OPERATION_ID', 'XX_WO_OPERATION_MATERIAL_ID', 'XX_WO_OPERATION_RESOURCE_ID',
-    'customerAccountId', 'Party Site Id', 'ArNbr Number  ', 'Site', 'CustomerAccountId', 'AccountNumber', 'table',
+    'customerAccountId', 'Party Site Id', 'ArNbr Number', 'Site', 'CustomerAccountId', 'AccountNumber', 'table',
     'startTime', 'recordsFetched', 'processingTime', 'companyCode', 'recordsUpdated', 'Id', 'NumberOfId',
     'FilePattern', 'MatchFound', 'FileStatus', 'FileNamePattern', 'TotalNoOfRecords', 'failures', 'openOrders',
     'success', 'idtype', 'ID', 'flagStatus', 'OrderNumber', 'CPQ_Integration_Status__c',
@@ -33,7 +31,7 @@ column_list = [
     'reportAbsolutePath', 'LastUpdatedate', 'query', 'id', 'ScheduleId', 'ItemNumber', 'PartType'
 ]
 
-
+# Define the prompt creation for SPL generation
 def build_spl_prompt(user_prompt: str) -> str:
     return f"""
 You are a Splunk chatbot agent helping users convert natural language questions into efficient SPL queries.
@@ -52,25 +50,25 @@ Input: {user_prompt}
 Output:
 """
 
-
-def generate_spl_query(user_prompt: str) -> str:
+# Call Hugging Face API to generate SPL query from the model
+def generate_spl_query_from_api(user_prompt: str) -> str:
     prompt = build_spl_prompt(user_prompt)
-    inputs = tokenizer(prompt, return_tensors="pt", padding=True, truncation=True)
-    inputs = {k: v.to(device) for k, v in inputs.items()}
+    
+    headers = {
+        "Authorization": f"Bearer {API_TOKEN}"
+    }
 
-    with torch.no_grad():
-        outputs = model.generate(
-            inputs["input_ids"],
-            attention_mask=inputs["attention_mask"],
-            max_length=256,
-            do_sample=False,
-            no_repeat_ngram_size=2,
-            pad_token_id=tokenizer.eos_token_id
-        )
+    # Sending the request to Hugging Face API for inference
+    response = requests.post(API_URL, headers=headers, json={"inputs": prompt})
+    
+    if response.status_code == 200:
+        output = response.json()[0]['generated_text']
+        return output.strip()
+    else:
+        print("Error with model request:", response.status_code, response.text)
+        return None
 
-    return tokenizer.decode(outputs[0], skip_special_tokens=True).strip()
-
-
+# Extract field-value filters and exclusions from the generated SPL query
 def extract_field_value_filters(spl_query: str, known_fields: list) -> dict:
     filters = {}
     excludes = []
@@ -91,7 +89,7 @@ def extract_field_value_filters(spl_query: str, known_fields: list) -> dict:
         # Remove NOTs to simplify parsing of key-value pairs
         search_clause = re.sub(r'NOT\s+"[^"]+"', '', search_clause)
 
-        # Extract key=value pairs
+        # Extract key-value pairs
         key_value_pairs = re.findall(r'(\w+)\s*=\s*"?(.*?)"?(?=\s|$)', search_clause)
         for key, value in key_value_pairs:
             if key in known_fields:
@@ -103,14 +101,16 @@ def extract_field_value_filters(spl_query: str, known_fields: list) -> dict:
         "raw_spl": spl_query
     }
 
-
 # === Example usage ===
 if __name__ == "__main__":
     user_prompt = "Get all error logs from QA that failed due to data issues but exclude end-of-input"
     print(f"User Prompt: {user_prompt}")
 
-    spl_query = generate_spl_query(user_prompt)
+    # Call the Hugging Face API to generate SPL query
+    spl_query = generate_spl_query_from_api(user_prompt)
     print("\nGenerated SPL Query:\n", spl_query)
 
-    parsed_filters = extract_field_value_filters(spl_query, column_list)
-    print("\nStructured Field Filters:\n", parsed_filters)
+    # Extract the filters and exclusions
+    if spl_query:
+        parsed_filters = extract_field_value_filters(spl_query, column_list)
+        print("\nStructured Field Filters:\n", parsed_filters)
