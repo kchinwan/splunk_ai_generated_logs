@@ -1,12 +1,12 @@
 import requests
 import re
 
-# Hugging Face API setup
+# Hugging Face Sambanova API setup
 API_TOKEN = "your_hugging_face_token"  # Replace with your Hugging Face API token
-MODEL_NAME = "bigcode/starcoder2-7b"  # Replace with your model name if different
-API_URL = f"https://api-inference.huggingface.co/models/{MODEL_NAME}"
+API_URL = "https://router.huggingface.co/sambanova/v1/chat/completions"
+MODEL_NAME = "Meta-Llama-3.2-3B-Instruct"
 
-# Define known log schema fields
+# Known log schema fields
 column_list = [
     'eventDatetime', 'eventType', 'failureType', 'index', 'step', 'comments', 'uniqueId', 'interfaceId',
     'correlationId', 'source', 'target', 'originalClientId', 'originalClientName', 'businessObject',
@@ -26,7 +26,7 @@ column_list = [
     'reportAbsolutePath', 'LastUpdatedate', 'query', 'id', 'ScheduleId', 'ItemNumber', 'PartType'
 ]
 
-# Define the prompt creation for SPL generation
+# Prompt builder
 def build_spl_prompt(user_prompt: str) -> str:
     return f"""
 You are a Splunk chatbot agent helping users convert natural language questions into efficient SPL queries.
@@ -43,49 +43,46 @@ Output: index="ei_qa_mule_apps" | spath eventType | search eventType=ERROR failu
 
 Input: {user_prompt}
 Output:
-"""
+""".strip()
 
-# Call Hugging Face API to generate SPL query from the model
+# Query Sambanova API (Meta-Llama-3.2-3B-Instruct)
 def generate_spl_query_from_api(user_prompt: str) -> str:
     prompt = build_spl_prompt(user_prompt)
     
     headers = {
-        "Authorization": f"Bearer {API_TOKEN}"
+        "Authorization": f"Bearer {API_TOKEN}",
+        "Content-Type": "application/json"
     }
 
-    # Send the request to Hugging Face API for inference
-    response = requests.post(API_URL, headers=headers, json={"inputs": prompt})
-    
+    payload = {
+        "model": MODEL_NAME,
+        "messages": [
+            {"role": "user", "content": prompt}
+        ]
+    }
+
+    response = requests.post(API_URL, headers=headers, json=payload)
+
     if response.status_code == 200:
-        # API response returns a list with the result at index 0
-        output = response.json()[0]['generated_text']
-        return output.strip()
+        return response.json()['choices'][0]['message']['content'].strip()
     else:
-        print(f"Error with model request: {response.status_code} - {response.text}")
+        print(f"Error {response.status_code}: {response.text}")
         return None
 
-# Extract field-value filters and exclusions from the generated SPL query
+# Field extraction from SPL query
 def extract_field_value_filters(spl_query: str, known_fields: list) -> dict:
     filters = {}
     excludes = []
 
-    # Extract index
     index_match = re.search(r'index\s*=\s*"?(.*?)"?(?=\s|\|)', spl_query)
     if index_match:
         filters['index'] = index_match.group(1)
 
-    # Extract everything after `search` if it exists
     search_match = re.search(r'\|\s*search\s+(.*)', spl_query)
     if search_match:
         search_clause = search_match.group(1)
-
-        # Extract NOT conditions
         excludes = re.findall(r'NOT\s+"([^"]+)"', search_clause)
-
-        # Remove NOTs to simplify parsing of key-value pairs
         search_clause = re.sub(r'NOT\s+"[^"]+"', '', search_clause)
-
-        # Extract key-value pairs
         key_value_pairs = re.findall(r'(\w+)\s*=\s*"?(.*?)"?(?=\s|$)', search_clause)
         for key, value in key_value_pairs:
             if key in known_fields:
@@ -97,16 +94,14 @@ def extract_field_value_filters(spl_query: str, known_fields: list) -> dict:
         "raw_spl": spl_query
     }
 
-# === Example usage ===
+# === Example ===
 if __name__ == "__main__":
     user_prompt = "Get all error logs from QA that failed due to data issues but exclude end-of-input"
-    print(f"User Prompt: {user_prompt}")
+    print("User Prompt:", user_prompt)
 
-    # Call the Hugging Face API to generate SPL query
     spl_query = generate_spl_query_from_api(user_prompt)
     print("\nGenerated SPL Query:\n", spl_query)
 
-    # Extract the filters and exclusions
     if spl_query:
         parsed_filters = extract_field_value_filters(spl_query, column_list)
-        print("\nStructured Field Filters:\n", parsed_filters)
+        print("\nExtracted Filters and Excludes:\n", parsed_filters)
