@@ -1,15 +1,10 @@
-import torch
-import re
 import requests
-from transformers import AutoTokenizer
+import re
 
 # Hugging Face API setup
-API_TOKEN = "your_hugging_face_token"  # Use your Hugging Face token
-MODEL_NAME = "bigcode/starcoder2-7b"
+API_TOKEN = "your_hugging_face_token"  # Replace with your Hugging Face API token
+MODEL_NAME = "bigcode/starcoder2-7b"  # Replace with your model name if different
 API_URL = f"https://api-inference.huggingface.co/models/{MODEL_NAME}"
-
-# Load the tokenizer
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
 # Define known log schema fields
 column_list = [
@@ -58,14 +53,15 @@ def generate_spl_query_from_api(user_prompt: str) -> str:
         "Authorization": f"Bearer {API_TOKEN}"
     }
 
-    # Sending the request to Hugging Face API for inference
+    # Send the request to Hugging Face API for inference
     response = requests.post(API_URL, headers=headers, json={"inputs": prompt})
     
     if response.status_code == 200:
+        # API response returns a list with the result at index 0
         output = response.json()[0]['generated_text']
         return output.strip()
     else:
-        print("Error with model request:", response.status_code, response.text)
+        print(f"Error with model request: {response.status_code} - {response.text}")
         return None
 
 # Extract field-value filters and exclusions from the generated SPL query
