@@ -1,0 +1,50 @@
+{"input": "Get all error logs from dev environment related to data failures, excluding end-of-input errors.", "output": "index=\"ei_dev_oic_apps\" | spath eventType | search eventType=ERROR, failureType=DATA NOT \"end-of-input at root\""}
+{"input": "Find logs where notification is enabled in prod.", "output": "index=\"ei_prod_tms\" | spath eventType | search \"notificationDetails.enabled\"=*"}
+{"input": "Summarize error logs by interface ID and app name in prod.", "output": "index=\"ei_prod_oic_apps\" | stats count by metadata.interfaceId, metadata.appName"}
+{"input": "Get logs with message 'No space left on device' in all sources.", "output": "index=* \"No space left on device\" source=\"http:SPLUNK_HEC_MULE_APPS_PROD_EVENTS\""}
+{"input": "Summarize error logs by interface ID and app name in dev.", "output": "index=\"ei_dev_mule_apps\" | stats count by metadata.interfaceId, metadata.appName"}
+{"input": "Get all error logs from prod environment related to data failures, excluding end-of-input errors.", "output": "index=\"ei_prod_tms\" | spath eventType | search eventType=ERROR, failureType=DATA NOT \"end-of-input at root\""}
+{"input": "Summarize error logs by interface ID and app name in dev.", "output": "index=\"ei_dev_oic_apps\" | stats count by metadata.interfaceId, metadata.appName"}
+{"input": "List error logs from qa Mule apps.", "output": "index=\"ei_qa_mule_apps\" | spath eventType | search eventType=ERROR"}
+{"input": "Get all error logs from dev environment related to data failures, excluding end-of-input errors.", "output": "index=\"ei_dev_axway_apps\" | spath eventType | search eventType=ERROR, failureType=DATA NOT \"end-of-input at root\""}
+{"input": "Get logs with message 'No space left on device' in all sources.", "output": "index=* \"No space left on device\" source=\"http:SPLUNK_HEC_MULE_APPS_PROD_EVENTS\""}
+{"input": "Show system failures in the qa environment.", "output": "index=\"ei_qa_oic_apps\" | spath eventType | search eventType=ERROR, failureType=SYSTEM, \"metadata.environment\"=\"qa*\", \"notificationDetails.enabled\"=*"}
+{"input": "List error logs from qa Mule apps.", "output": "index=\"ei_qa_mule_apps\" | spath eventType | search eventType=ERROR"}
+{"input": "Show system failures in the dev environment.", "output": "index=\"ei_wmb_idx\" | spath eventType | search eventType=ERROR, failureType=SYSTEM, \"metadata.environment\"=\"dev*\", \"notificationDetails.enabled\"=*"}
+{"input": "List error logs from prod Mule apps.", "output": "index=\"ei_prod_mule_apps\" | spath eventType | search eventType=ERROR"}
+{"input": "Retrieve logs with error type SYSTEM but exclude interface IDs PA00002, PA00021 in qa.", "output": "index=\"ei_qa_wmb\" * extracted_eventType=ERROR failureType=SYSTEM \"metadata.interfaceId\" != \"PA00002\" \"metadata.interfaceId\" != \"PA00021\""}
+{"input": "Retrieve logs with error type SYSTEM but exclude interface IDs PA00002, PA00021 in dev.", "output": "index=\"ei_dev_axway_apps\" * extracted_eventType=ERROR failureType=SYSTEM \"metadata.interfaceId\" != \"PA00002\" \"metadata.interfaceId\" != \"PA00021\""}
+{"input": "Get all logs for app starting with I_110-1 in dev.", "output": "index=\"ei_dev_mule_apps\" \"metadata.appName\"=\"I_110-1*\""}
+{"input": "Show logs with interface ID PA00021 in qa.", "output": "index=\"ei_qa_oic_apps\" \"metadata.interfaceId\"=PA00021"}
+{"input": "Retrieve logs with error type SYSTEM but exclude interface IDs PA00002, PA00021 in dev.", "output": "index=\"ei_dev_oic_apps\" * extracted_eventType=ERROR failureType=SYSTEM \"metadata.interfaceId\" != \"PA00002\" \"metadata.interfaceId\" != \"PA00021\""}
+{"input": "Get all error logs from prod environment related to data failures, excluding end-of-input errors.", "output": "index=\"ei_prod_tms\" | spath eventType | search eventType=ERROR, failureType=DATA NOT \"end-of-input at root\""}
+{"input": "List error logs from prod Mule apps.", "output": "index=\"ei_prod_tms\" | spath eventType | search eventType=ERROR"}
+{"input": "Get all error logs from prod environment related to data failures, excluding end-of-input errors.", "output": "index=\"ei_prod_mule_apps\" | spath eventType | search eventType=ERROR, failureType=DATA NOT \"end-of-input at root\""}
+{"input": "Get all error logs from qa environment related to data failures, excluding end-of-input errors.", "output": "index=\"ei_qa_mule_apps\" | spath eventType | search eventType=ERROR, failureType=DATA NOT \"end-of-input at root\""}
+{"input": "List error logs from qa Mule apps.", "output": "index=\"ei_qa_mule_apps\" | spath eventType | search eventType=ERROR"}
+{"input": "Show logs with interface ID I10020 in prod.", "output": "index=\"ei_prod_oic_apps\" \"metadata.interfaceId\"=I10020"}
+{"input": "Find logs where notification is enabled in qa.", "output": "index=\"ei_qa_mule_apps\" | spath eventType | search \"notificationDetails.enabled\"=*"}
+{"input": "Find logs where notification is enabled in qa.", "output": "index=\"ei_qa_oic_apps\" | spath eventType | search \"notificationDetails.enabled\"=*"}
+{"input": "Retrieve logs with error type SYSTEM but exclude interface IDs PA00002, PA00021 in dev.", "output": "index=\"ei_wmb_idx\" * extracted_eventType=ERROR failureType=SYSTEM \"metadata.interfaceId\" != \"PA00002\" \"metadata.interfaceId\" != \"PA00021\""}
+{"input": "Find error logs from qa with any failure type.", "output": "index=\"ei_qa_oic_apps\" | spath eventType | search eventType=ERROR, failureType=*"}
+{"input": "Find logs where notification is enabled in qa.", "output": "index=\"ei_qa_oic_apps\" | spath eventType | search \"notificationDetails.enabled\"=*"}
+{"input": "Get all error logs from prod environment related to data failures, excluding end-of-input errors.", "output": "index=\"ei_prod_mule_apps\" | spath eventType | search eventType=ERROR, failureType=DATA NOT \"end-of-input at root\""}
+{"input": "Get all logs for app starting with i10025 in dev.", "output": "index=\"ei_dev_oic_apps\" \"metadata.appName\"=\"i10025*\""}
+{"input": "Summarize error logs by interface ID and app name in qa.", "output": "index=\"ei_qa_mule_apps\" | stats count by metadata.interfaceId, metadata.appName"}
+{"input": "Show logs with interface ID PA00021 in dev.", "output": "index=\"ei_dev_oic_apps\" \"metadata.interfaceId\"=PA00021"}
+{"input": "Find error logs from qa with any failure type.", "output": "index=\"ei_qa_oic_apps\" | spath eventType | search eventType=ERROR, failureType=*"}
+{"input": "Find error logs from prod with any failure type.", "output": "index=\"ei_prod_tms\" | spath eventType | search eventType=ERROR, failureType=*"}
+{"input": "Retrieve logs with error type SYSTEM but exclude interface IDs PA00002, PA00021 in prod.", "output": "index=\"ei_prod_tms\" * extracted_eventType=ERROR failureType=SYSTEM \"metadata.interfaceId\" != \"PA00002\" \"metadata.interfaceId\" != \"PA00021\""}
+{"input": "Show system failures in the dev environment.", "output": "index=\"ei_dev_oic_apps\" | spath eventType | search eventType=ERROR, failureType=SYSTEM, \"metadata.environment\"=\"dev*\", \"notificationDetails.enabled\"=*"}
+{"input": "Find error logs from dev with any failure type.", "output": "index=\"ei_dev_axway_apps\" | spath eventType | search eventType=ERROR, failureType=*"}
+{"input": "List error logs from prod Mule apps.", "output": "index=\"ei_prod_oic_apps\" | spath eventType | search eventType=ERROR"}
+{"input": "Show system failures in the qa environment.", "output": "index=\"ei_qa_wmb\" | spath eventType | search eventType=ERROR, failureType=SYSTEM, \"metadata.environment\"=\"qa*\", \"notificationDetails.enabled\"=*"}
+{"input": "Show system failures in the dev environment.", "output": "index=\"ei_dev_mule_apps\" | spath eventType | search eventType=ERROR, failureType=SYSTEM, \"metadata.environment\"=\"dev*\", \"notificationDetails.enabled\"=*"}
+{"input": "Find error logs from prod with any failure type.", "output": "index=\"ei_prod_tms\" | spath eventType | search eventType=ERROR, failureType=*"}
+{"input": "Get all logs for app starting with ea10037 in dev.", "output": "index=\"ei_dev_oic_apps\" \"metadata.appName\"=\"ea10037*\""}
+{"input": "List error logs from dev Mule apps.", "output": "index=\"ei_dev_oic_apps\" | spath eventType | search eventType=ERROR"}
+{"input": "Summarize error logs by interface ID and app name in prod.", "output": "index=\"ei_prod_tms\" | stats count by metadata.interfaceId, metadata.appName"}
+{"input": "Get all logs for app starting with ea10037 in dev.", "output": "index=\"ei_dev_axway_apps\" \"metadata.appName\"=\"ea10037*\""}
+{"input": "Get all logs for app starting with oracle31 in prod.", "output": "index=\"ei_prod_oic_apps\" \"metadata.appName\"=\"oracle31*\""}
+{"input": "Find error logs from prod with any failure type.", "output": "index=\"ei_prod_tms\" | spath eventType | search eventType=ERROR, failureType=*"}
+{"input": "Show system failures in the prod environment.", "output": "index=\"ei_prod_oic_apps\" | spath eventType | search eventType=ERROR, failureType=SYSTEM, \"metadata.environment\"=\"prod*\", \"notificationDetails.enabled\"=*"}

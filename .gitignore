@@ -1,0 +1,5 @@
+flan-lora-splunk
+splunk_ai
+.env
+__pycache__/
+.ipynb_checkpoints/
