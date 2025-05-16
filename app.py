@@ -1,11 +1,11 @@
 import streamlit as st
-from llm_query_generator import generate_spl_query, extract_field_value_filters
+from llm_query_generator import generate_spl_query_from_api, extract_field_value_filters
+from filtered_df import summarize  # Ensure you're importing the correct summarize function
 
 st.set_page_config(page_title="Splunk Query Assistant", layout="wide")
 
 st.title("🧠 Splunk Query Assistant")
 st.markdown("Enter a natural language query to generate a Splunk SPL query and extract relevant fields.")
-
 
 column_list = [
     'eventDatetime', 'eventType', 'failureType', 'index', 'step', 'comments', 'uniqueId', 'interfaceId',
@@ -32,13 +32,25 @@ user_prompt = st.text_area("🔍 Your Query", height=100, placeholder="E.g., Sho
 if st.button("Generate"):
     if user_prompt.strip():
         with st.spinner("Generating SPL query..."):
-            spl_query = generate_spl_query(user_prompt)
-            fields = extract_field_value_filters(spl_query,column_list)
+            spl_query = generate_spl_query_from_api(user_prompt)
+            fields = extract_field_value_filters(spl_query, column_list)
 
         st.subheader("✅ Generated SPL Query")
         st.code(spl_query, language="bash")
 
-        st.subheader("📋 filter Fields value")
-        st.write(fields if fields else "No specific fields extracted.")
+        # Call the summarize function from filtered_df.py to generate the log summary
+        st.subheader("📋 Log Summary")
+
+        # Placeholder for streaming output
+        summary_placeholder = st.empty()
+        cumulative_summary = ""  # This will store the entire summary content
+
+        # Show the spinner while summarizing
+        with st.spinner("Summarizing logs... This may take a moment"):
+            # Use the summarize generator to stream output incrementally
+            for line in summarize():  # summarize() now uses yield for streaming
+                cumulative_summary += line + "\n"  # Append new content to the cumulative summary
+                summary_placeholder.text(cumulative_summary)  # Update the placeholder with the full content
+
     else:
         st.warning("Please enter a query.")
