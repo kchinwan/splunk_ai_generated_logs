@@ -1,10 +1,12 @@
-import requests
+import google.generativeai as genai
 import re
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# Hugging Face Sambanova API setup
-API_TOKEN = "your_hugging_face_token"  # Replace with your Hugging Face API token
-API_URL = "https://router.huggingface.co/sambanova/v1/chat/completions"
-MODEL_NAME = "Meta-Llama-3.2-3B-Instruct"
+# === Gemini API setup ===
+#GEMINI_API_KEY = ""  # Replace with your Gemini API key
+genai.configure(api_key=GEMINI_API_KEY)
+model = genai.GenerativeModel(model_name="models/gemini-2.0-flash-lite")
 
 # Known log schema fields
 column_list = [
@@ -45,28 +47,14 @@ Input: {user_prompt}
 Output:
 """.strip()
 
-# Query Sambanova API (Meta-Llama-3.2-3B-Instruct)
+# Query Gemini instead of Hugging Face
 def generate_spl_query_from_api(user_prompt: str) -> str:
     prompt = build_spl_prompt(user_prompt)
-    
-    headers = {
-        "Authorization": f"Bearer {API_TOKEN}",
-        "Content-Type": "application/json"
-    }
-
-    payload = {
-        "model": MODEL_NAME,
-        "messages": [
-            {"role": "user", "content": prompt}
-        ]
-    }
-
-    response = requests.post(API_URL, headers=headers, json=payload)
-
-    if response.status_code == 200:
-        return response.json()['choices'][0]['message']['content'].strip()
-    else:
-        print(f"Error {response.status_code}: {response.text}")
+    try:
+        response = model.generate_content(prompt)
+        return response.text.strip()
+    except Exception as e:
+        print(f"Error generating SPL from Gemini: {e}")
         return None
 
 # Field extraction from SPL query
@@ -91,10 +79,9 @@ def extract_field_value_filters(spl_query: str, known_fields: list) -> dict:
     return {
         "filters": filters,
         "excludes": excludes,
-        "raw_spl": spl_query
     }
 
-# === Example ===
+# === Example usage ===
 if __name__ == "__main__":
     user_prompt = "Get all error logs from QA that failed due to data issues but exclude end-of-input"
     print("User Prompt:", user_prompt)
