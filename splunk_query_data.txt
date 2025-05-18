@@ -1,3 +1,12 @@
+ Bonus: Add Top-K Memory of Past Examples
+
+You could improve few-shot prompting by:
+
+Storing past confirmed queries in a file
+Fetching top-3 relevant ones using cosine similarity or TF-IDF based on the user query
+Injecting those into the prompt dynamically
+Let me know if you want help setting that up.
+
 {"input": "Get all error logs from dev environment related to data failures, excluding end-of-input errors.", "output": "index=\"ei_dev_oic_apps\" | spath eventType | search eventType=ERROR, failureType=DATA NOT \"end-of-input at root\""}
 {"input": "Find logs where notification is enabled in prod.", "output": "index=\"ei_prod_tms\" | spath eventType | search \"notificationDetails.enabled\"=*"}
 {"input": "Summarize error logs by interface ID and app name in prod.", "output": "index=\"ei_prod_oic_apps\" | stats count by metadata.interfaceId, metadata.appName"}
