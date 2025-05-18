@@ -1,137 +1,121 @@
-import pandas as pd
 import google.generativeai as genai
 import urllib3
-
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+import re
 
 # === Gemini API Setup ===
-GEMINI_API_KEY = ""  # 
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+#incldue key here
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel("models/gemini-2.0-flash-lite")
+model = genai.GenerativeModel(model_name="models/gemini-2.0-flash-lite")
 
-# === Filters and Config ===
-filters = {
-    'index': 'ei_dev_mule_apps',
-    'eventType': 'ERROR',
-    #'uniqueId': 'b1cfc47b-3ec0-4637-ab9f-0264b98cb7fb',
-    'failureType':'DATA',
-    'environment':'dev-us',
-    'Resource':'patchSalesOrders'
-}
-excludes = []
-error_fields = ['comments', 'failures', 'ValidationErrors', 'error_0_description']
-
-# === Load CSV logs ===
-df_logs = pd.read_csv("flatlogs.csv")
+# === Known Log Schema Fields ===
 column_list = [
-    'eventDatetime', 'eventType', 'failureType', 'index', 'comments', 'uniqueId', 'interfaceId',
-    'correlationId', 'source', 'target', 'originalClientId', 'originalClientName', 'appName', 
-    'environment', 'ValidationErrors', 'failures', 'error_0_description', 'error_0_type', 'error_0_cause', 'error_0_detailedDescription'
+    "eventDatetime", "eventType", "failureType", "index", "step", "comments", "uniqueId", "interfaceId",
+    "correlationId", "source", "target", "originalClientId", "originalClientName", "businessObject", "appName",
+    "environment", "sourceBusinessServiceId", "targetBusinessServiceId", "businessIntegrationNumber", "businessUnit",
+    "Resource", "WorkOrderNumber", "IdType", "ValidationErrors", "error_0_description", "error_0_type",
+    "error_0_cause", "OrderNumber", "FilePattern", "CPQ_Oracle_Integration__c", "Type", "AssemblyPartNumber",
+    "PartNumber", "Quantity", "billSequenceId", "ReportPath", "LastUpdateTo", "LastUpdateDate", "schedulerName",
+    "p_start_date", "p_end_date", "ScheduleId", "ItemNumber", "PartType"
 ]
-df_logs = df_logs[column_list]
 
-def apply_filters_to_df(df: pd.DataFrame, filters: dict, excludes: list) -> pd.DataFrame:
-    filtered_df = df.copy()
-    for key, value in filters.items():
-        if key in filtered_df.columns:
-            mask = filtered_df[key].astype(str).str.lower() == str(value).lower()
-            filtered_df = filtered_df[mask]
-    for exclusion in excludes:
-        mask = filtered_df.apply(lambda row: exclusion.lower() not in str(row).lower(), axis=1)
-        filtered_df = filtered_df[mask]
-    return filtered_df
+# === Prompt for New Query ===
+def build_spl_prompt(user_prompt: str) -> str:
+    examples = """
+Examples:
+Input: Order 807563904 did not reach OTM from SAP, can you check for any failures?
+Output: index="ei_prod_mule_apps" "0807563904" "metadata.source"="Oracle TMS" "metadata.target"=SAP
 
-# === Step 2: Chunking ===
-def chunk_dataframe(df: pd.DataFrame, chunk_size: int = 25):
-    for i in range(0, len(df), chunk_size):
-        yield df.iloc[i:i + chunk_size]
+Input: Can you please check how this idoc made through mulesoft layer. Ideally if this value is missing it will never made to WMS  system. 0000000116455369 0000000116459644
+Output: index="ei_prod_mule_apps" "0000000116455369" "0000000116459644" "metadata.target"=WMSBTS
 
-# === Step 3: Optimized Prompt ===
-def dataframe_to_prompt(chunk_df: pd.DataFrame, error_fields: list) -> str:
-    logs_text = ""
-    for idx, row in chunk_df.iterrows():
-        error_info = []
-        for field in error_fields:
-            if row.get(field):
-                error_info.append(str(row.get(field)))
-        error_info = " | ".join(error_info) if error_info else "N/A"
-
-        logs_text += (
-            f"{idx + 1}. [{row.get('eventDatetime', 'N/A')}] "
-            f"App: {row.get('appName', 'N/A')}, "
-            f"Env: {row.get('environment', 'N/A')}, "
-            f"Interface: {row.get('interfaceId', 'N/A')}, "
-            f"Error: {error_info}\n"
-        )
-
-    prompt = f"""
-You are a support analyst reviewing logs from failed transactions.
-Analyze the following log entries and focus on key problems and recurring errors.
-
-Logs:
-{logs_text}
-
-Provide a concise summary with identified issues and recurring patterns.
+Input: Lot many vouchers that are triggered from OTM did not reach TRAX system even though triggered them multiple times. Could you please help us investigate for below vouchers?
+Output: index="ei_prod_mule_apps" "20240923-0059" OR "20240923-0064" "metadata.source"="Oracle TMS" "metadata.target"="IntelligentAudit, Trax"
 """
-    return prompt
 
-# === Step 4: Streaming Gemini call for small or chunked logs ===
-def summarize_chunk_streaming(chunk_df: pd.DataFrame, error_fields: list):
-    prompt = dataframe_to_prompt(chunk_df, error_fields)
+    return f"""
+You are a Splunk assistant. Convert the following natural language request into a valid, efficient SPL query.
+
+Here are instructions to follow:
+- Always use index="ei_prod_mule_apps" unless the user mentions another index.
+- Extract key entities such as IDs, order numbers, voucher numbers, system names, and use them in double quotes.
+- If the user implies a direction like SAP → OTM, map to "metadata.source"="SAP" and "metadata.target"="OTM".
+- Support OR filters when multiple IDs or values are provided.
+- Only use fields from this schema when necessary: {', '.join(column_list)}
+
+{examples}
+
+Now convert the following request:
+Request: {user_prompt}
+SPL Query:
+""".strip()
+
+
+# === Prompt for Refinement ===
+def build_refinement_prompt(user_input: str, chat_history: list, current_spl: str) -> str:
+    history = "\n".join([f"User: {u}\nAgent: {a}" for u, a in chat_history[-3:]])
+
+    return f"""
+You are a Splunk assistant helping refine a previous SPL query.
+
+Always include:
+- index (default to index="ei_prod_mule_apps" unless changed)
+- field filters based on user instructions
+- quoted IDs or values where relevant
+- logical operators (AND, OR) where needed
+
+Known schema fields: {', '.join(column_list)}
+
+Previous SPL:
+{current_spl or "None"}
+
+Conversation History:
+{history}
+
+New instruction from user:
+{user_input}
+
+Refined SPL Query:
+""".strip()
+
+def clean_spl_query(spl: str) -> str:
+    # 1. Remove quotes around field names: "OrderNumber"= => OrderNumber=
+    spl = re.sub(r'"(\w+)"\s*=', r'\1=', spl)
+
+    # 2. Remove quotes around ID-like values (numbers or alphanumeric strings without spaces)
+    # Capture pattern: FieldName="value" or FieldName='value'
+    # Remove quotes only if value is alphanumeric or digits only (no spaces, no special chars)
+    def unquote_id_value(match):
+        field = match.group(1)
+        val = match.group(2)
+        # Check if val is purely alphanumeric or digits (adjust if you want to allow some symbols)
+        if re.fullmatch(r'[A-Za-z0-9]+', val):
+            # For purely digits, strip leading zeros but keep '0' if all zeros
+            if val.isdigit():
+                val = val.lstrip('0') or '0'
+            return f'{field}={val}'
+        else:
+            # Keep quotes for complex values (with spaces or special chars)
+            return match.group(0)
+
+    spl = re.sub(r'(\w+)=["\']([^"\']+)["\']', unquote_id_value, spl)
+
+    return spl
+
+# === Gemini Wrapper ===
+def generate_spl_query_from_api(prompt: str) -> str:
     try:
-        response = model.generate_content(prompt, stream=True)
-        for chunk in response:
-            if chunk.text:
-                yield chunk.text  # Yield each chunk as it comes in
+        full_prompt = f"{prompt}\n\nNote: Schema fields to consider include:\n{', '.join(column_list)}"
+        response = model.generate_content(full_prompt)
+        clean_result = clean_spl_query(response.text.strip())
+        return clean_result
     except Exception as e:
-        yield f"Error during streaming summarization: {e}"
+        return f"Error: {e}"
 
-# === Step 5: Combine chunk summaries and stream final summary ===
-def summarize_all_chunks_streaming(df: pd.DataFrame, chunk_size: int, error_fields: list):
-    summaries = []
-    previous_summary = ""
-
-    for chunk in chunk_dataframe(df, chunk_size):
-        summary = summarize_chunk_streaming(chunk, error_fields)
-        for line in summary:  # Yield each line of summary from streaming
-            if summary and len(line.split()) > 5 and line != previous_summary:
-                summaries.append(line)
-                previous_summary = line
-
-    if not summaries:
-        yield "No meaningful summaries were generated from the log chunks."
-
-    combined_prompt = (
-        "You are a senior support analyst. Based on the following summaries of error log batches, "
-        "write a final root cause analysis covering recurring patterns, key issues, and potential root causes. "
-        "Combine the information from the individual summaries into a coherent and comprehensive overview. "
-        "Provide actionable insights."
-        "Ensure the summary is well structured.\n\n"
-        "Summaries:\n"
-        + "\n".join(f"- {s}" for s in summaries)
-        + "\n\n Concise Final Root Cause Summary in few points: "
-    )
-
-    try:
-        response = model.generate_content(combined_prompt, stream=True)
-        for chunk in response:  # Stream the final summary in chunks
-            if chunk.text:
-                yield chunk.text
-    except Exception as e:
-        yield f"Error during final streaming summarization: {e}"
-
-# === Step 6: Main driver with conditional chunking ===
-def summarize():
-    filtered_logs_df = apply_filters_to_df(df_logs, filters, excludes)
-    total_rows = len(filtered_logs_df)
-
-    if total_rows == 0:
-        yield "No logs to summarize."
-
-    elif total_rows <= 10:
-        # Directly summarize if there are fewer than or equal to 10 logs
-        yield from summarize_chunk_streaming(filtered_logs_df, error_fields)
-
-    else:
-        # Summarize in chunks if there are more than 10 logs
-        yield from summarize_all_chunks_streaming(filtered_logs_df, chunk_size=25, error_fields=error_fields)
+# === Optional Standalone Test ===
+if __name__ == "__main__":
+    user_input = "Get all error logs from QA that failed due to data issues but exclude end-of-input"
+    full_prompt = build_spl_prompt(user_input)
+    spl_query = generate_spl_query_from_api(full_prompt)
+    print("\nSPL Query:\n", spl_query)
