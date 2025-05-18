@@ -7,6 +7,30 @@ Fetching top-3 relevant ones using cosine similarity or TF-IDF based on the user
 Injecting those into the prompt dynamically
 Let me know if you want help setting that up.
 
+
+1. Expand & Diversify Training / Prompt Examples
+Collect a wide variety of real user queries and their corresponding SPL queries.
+Include edge cases, different domains, formats, slang, and ambiguous queries.
+Continuously update prompt examples to cover newly discovered patterns.
+2. Use Few-shot Prompting & Contextual Examples
+Add multiple clear input-output examples in your prompt to guide the LLM.
+Include examples with date/time filters, different indexes, multiple filters, logical operators, etc.
+This primes the model with diverse patterns.
+3. Schema Awareness & Dynamic Field Extraction
+Keep your schema fields list updated and dynamic if possible.
+Consider adding a pre-processing step that extracts keywords, entity types, and potential filters from the user query (e.g., dates, IDs, system names).
+Use these extracted entities to craft more structured prompts.
+4. Post-Processing / Validation of Generated SPL
+Implement syntactic and semantic validation of generated SPL before displaying it.
+Detect common errors (missing quotes, unbalanced operators, invalid field names).
+Possibly use a Splunk API or test environment to verify query validity or results.
+5. Interactive Refinement Workflow
+Enable user to confirm, modify, or refine queries iteratively.
+Allow users to provide feedback on accuracy and relevance.
+Capture these interactions to improve your prompts or future fine-tuning.
+
+
+
 {"input": "Get all error logs from dev environment related to data failures, excluding end-of-input errors.", "output": "index=\"ei_dev_oic_apps\" | spath eventType | search eventType=ERROR, failureType=DATA NOT \"end-of-input at root\""}
 {"input": "Find logs where notification is enabled in prod.", "output": "index=\"ei_prod_tms\" | spath eventType | search \"notificationDetails.enabled\"=*"}
 {"input": "Summarize error logs by interface ID and app name in prod.", "output": "index=\"ei_prod_oic_apps\" | stats count by metadata.interfaceId, metadata.appName"}
